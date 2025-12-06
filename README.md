@@ -49,6 +49,11 @@
 # Run tests (uses saved project)
 ./tester.sh
 
+# Use presets for common workflows
+./tester.sh agent     # JSON + error context (for AI agents)
+./tester.sh debug     # Interactive + retries + context
+./tester.sh ci        # JSON + trends + JUnit export
+
 # Interactive mode
 ./tester.sh -i
 
@@ -85,6 +90,28 @@ python main.py -p /path/to/unity/project
 ---
 
 ## Usage
+
+### Presets
+
+Presets are shortcuts for common workflows:
+
+| Preset | Expands To | Use Case |
+|--------|------------|----------|
+| `agent` | `-j --with-context` | AI agents |
+| `debug` | `-i --retries 3 --with-context` | Debugging failures |
+| `ci` | `-j --show-trends --junit results.xml` | CI/CD pipelines |
+| `quick` | (default settings) | Fast iteration |
+
+```bash
+# With saved project
+./tester.sh agent
+
+# With explicit path
+./tester.sh ./MyProject debug
+
+# Preset + additional flags
+./tester.sh ci --platform PlayMode
+```
 
 ### Basic Commands
 
@@ -385,10 +412,17 @@ if not data["success"]:
 
 ## Configuration
 
-Create `.unity-agent.yaml` in your project root:
+### Quick Setup
 
 ```bash
+# Create default config
 ./tester.sh ./MyProject --init
+
+# Interactive setup wizard
+./tester.sh ./MyProject --wizard
+
+# View effective config (merged from all sources)
+./tester.sh ./MyProject --show-config
 ```
 
 ### Config File
@@ -426,10 +460,19 @@ test_groups:
 ## CLI Reference
 
 ```
-usage: ./tester.sh PROJECT_PATH [options]
+usage: ./tester.sh [PROJECT_PATH] [PRESET] [options]
 
-Required:
+Presets:
+  agent                  -j --with-context (AI agents)
+  debug                  -i --retries 3 --with-context
+  ci                     -j --show-trends --junit results.xml
+  quick                  Default settings
+
+Project:
   PROJECT_PATH           Unity project path (or use --set to save)
+  --set PATH             Save project path for future use
+  --current              Show saved project
+  --clear                Clear saved project
 
 Output:
   -j, --json             JSON output only
@@ -449,9 +492,12 @@ Agent Features:
   --export-deps PATH     Export dependency graph
   --show-deps CLASS      Show class dependencies
 
-Cache:
+Cache & Config:
   --no-cache             Disable cache
   --clear-cache          Clear cache before run
+  --init                 Create default config
+  --wizard               Interactive setup wizard
+  --show-config          Show effective config
 
 Trends:
   --show-trends          Show pass rate trends
@@ -459,7 +505,6 @@ Trends:
 
 Other:
   --junit PATH           Export JUnit XML
-  --init                 Create default config
 ```
 
 ---
