@@ -49,17 +49,36 @@
 # Setup (one-time)
 ./setup.sh
 
-# Run tests
-./tester.sh /path/to/unity/project
+# Set your project (one-time)
+./tester.sh --set /path/to/unity/project
+
+# Run tests (uses saved project)
+./tester.sh
 
 # Interactive mode
-./tester.sh /path/to/project -i
+./tester.sh -i
 
 # JSON output (for agents)
-./tester.sh /path/to/project -j
+./tester.sh -j
 
 # Show help
 ./tester.sh --help
+```
+
+### Project Management
+
+```bash
+# Save project path
+./tester.sh --set /path/to/unity/project
+
+# Show current project
+./tester.sh --current
+
+# Clear saved project
+./tester.sh --clear
+
+# One-time different project (doesn't change saved)
+./tester.sh /other/project -j
 ```
 
 ### Alternative (pip)

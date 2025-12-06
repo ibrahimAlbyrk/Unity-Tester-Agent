@@ -12,6 +12,7 @@ BOLD='\033[1m'
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="${SCRIPT_DIR}/.venv"
+PROJECT_FILE="${SCRIPT_DIR}/.current-project"
 
 # Help message
 show_help() {
@@ -21,13 +22,20 @@ show_help() {
     echo ""
     echo -e "${BOLD}Usage:${NC}"
     echo -e "  ./tester.sh <project-path> [options]"
+    echo -e "  ./tester.sh [options]                  ${CYAN}# uses saved project${NC}"
+    echo ""
+    echo -e "${BOLD}Project Management:${NC}"
+    echo -e "  ${GREEN}--set <path>${NC}          Save project path for future use"
+    echo -e "  ${GREEN}--current${NC}             Show current saved project"
+    echo -e "  ${GREEN}--clear${NC}               Clear saved project path"
     echo ""
     echo -e "${BOLD}Examples:${NC}"
-    echo -e "  ${CYAN}./tester.sh /path/to/unity/project${NC}"
-    echo -e "  ${CYAN}./tester.sh ./MyGame -j${NC}                    # JSON output"
-    echo -e "  ${CYAN}./tester.sh ./MyGame -i${NC}                    # Interactive mode"
-    echo -e "  ${CYAN}./tester.sh ./MyGame --group player${NC}        # Run test group"
-    echo -e "  ${CYAN}./tester.sh ./MyGame --verify-fix TestName${NC} # Verify fix"
+    echo -e "  ${CYAN}./tester.sh --set /path/to/unity/project${NC}  # Save project"
+    echo -e "  ${CYAN}./tester.sh${NC}                               # Run with saved project"
+    echo -e "  ${CYAN}./tester.sh -j${NC}                            # JSON output"
+    echo -e "  ${CYAN}./tester.sh -i${NC}                            # Interactive mode"
+    echo -e "  ${CYAN}./tester.sh --group player${NC}                # Run test group"
+    echo -e "  ${CYAN}./tester.sh ./OtherProject${NC}                # One-time different project"
     echo ""
     echo -e "${BOLD}Output Modes:${NC}"
     echo -e "  ${GREEN}-j, --json${NC}           JSON output only (for agents)"
@@ -56,20 +64,118 @@ show_help() {
     echo ""
 }
 
-# Check if help requested
-if [[ "$1" == "--help" || "$1" == "-h" || -z "$1" ]]; then
-    show_help
-    exit 0
+# Get saved project path
+get_saved_project() {
+    if [[ -f "$PROJECT_FILE" ]]; then
+        cat "$PROJECT_FILE"
+    fi
+}
+
+# Save project path
+save_project() {
+    local path="$1"
+    # Convert to absolute path
+    local abs_path="$(cd "$path" 2>/dev/null && pwd)"
+    if [[ -n "$abs_path" ]]; then
+        echo "$abs_path" > "$PROJECT_FILE"
+        echo -e "${GREEN}✓${NC} Project saved: ${CYAN}${abs_path}${NC}"
+        echo -e "  Now you can run ${CYAN}./tester.sh${NC} without specifying path"
+    else
+        echo -e "${RED}✗${NC} Invalid path: ${path}"
+        exit 1
+    fi
+}
+
+# Show current project
+show_current() {
+    local saved=$(get_saved_project)
+    if [[ -n "$saved" ]]; then
+        echo -e "${BOLD}Current project:${NC} ${CYAN}${saved}${NC}"
+        if [[ -d "$saved" ]]; then
+            echo -e "${GREEN}✓${NC} Path exists"
+        else
+            echo -e "${YELLOW}⚠${NC} Path no longer exists"
+        fi
+    else
+        echo -e "${YELLOW}No project saved.${NC}"
+        echo -e "Use ${CYAN}./tester.sh --set /path/to/project${NC} to save one"
+    fi
+}
+
+# Clear saved project
+clear_project() {
+    if [[ -f "$PROJECT_FILE" ]]; then
+        rm "$PROJECT_FILE"
+        echo -e "${GREEN}✓${NC} Saved project cleared"
+    else
+        echo -e "${YELLOW}No project was saved${NC}"
+    fi
+}
+
+# Handle special commands
+case "$1" in
+    --help|-h)
+        show_help
+        exit 0
+        ;;
+    --set)
+        if [[ -z "$2" ]]; then
+            echo -e "${RED}Error:${NC} Please provide a project path"
+            echo -e "Usage: ${CYAN}./tester.sh --set /path/to/project${NC}"
+            exit 1
+        fi
+        save_project "$2"
+        exit 0
+        ;;
+    --current)
+        show_current
+        exit 0
+        ;;
+    --clear)
+        clear_project
+        exit 0
+        ;;
+esac
+
+# Determine project path
+PROJECT_PATH=""
+ARGS=()
+
+# Check if first argument looks like a path (not an option)
+if [[ -n "$1" && ! "$1" =~ ^- ]]; then
+    # First arg is a path
+    PROJECT_PATH="$1"
+    shift
+    ARGS=("$@")
+else
+    # No path provided, use saved project
+    PROJECT_PATH=$(get_saved_project)
+    ARGS=("$@")
 fi
 
-# Check if project path is provided
-PROJECT_PATH="$1"
-shift  # Remove first argument, keep the rest as options
+# If still no project path, show help
+if [[ -z "$PROJECT_PATH" ]]; then
+    echo -e "${RED}Error:${NC} No project specified"
+    echo ""
+    echo -e "Either provide a path:"
+    echo -e "  ${CYAN}./tester.sh /path/to/unity/project${NC}"
+    echo ""
+    echo -e "Or save a project first:"
+    echo -e "  ${CYAN}./tester.sh --set /path/to/unity/project${NC}"
+    echo -e "  ${CYAN}./tester.sh${NC}  # then run without path"
+    echo ""
+    exit 1
+fi
 
 # Validate project path
 if [[ ! -d "$PROJECT_PATH" ]]; then
     echo -e "${RED}Error:${NC} Project path does not exist: ${PROJECT_PATH}"
-    echo -e "Usage: ${CYAN}./tester.sh /path/to/unity/project [options]${NC}"
+
+    # If using saved project, suggest clearing
+    if [[ -f "$PROJECT_FILE" ]]; then
+        echo -e "  The saved project path may be outdated."
+        echo -e "  Use ${CYAN}./tester.sh --clear${NC} to clear it"
+    fi
     exit 1
 fi
 
@@ -97,4 +203,4 @@ if ! python3 -c "import rich" 2>/dev/null; then
 fi
 
 # Run the test agent
-exec python3 "${SCRIPT_DIR}/main.py" -p "$PROJECT_PATH" "$@"
+exec python3 "${SCRIPT_DIR}/main.py" -p "$PROJECT_PATH" "${ARGS[@]}"

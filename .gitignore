@@ -100,3 +100,5 @@ InitTestScene*.unity*
 .DS_Store
 .idea
 __pycache__
+.current-project
+*.egg-info/
