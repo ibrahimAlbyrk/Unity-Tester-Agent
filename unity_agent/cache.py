@@ -118,20 +118,6 @@ def set_cached_compile(project_path: str, success: bool, errors: list, ttl: int 
     })
 
 
-def get_cached_tests(project_path: str, filter_pattern: str | None = None, ttl: int = 3600) -> dict | None:
-    """Get cached test results"""
-    cache = CacheManager(project_path, ttl)
-    extra_key = hashlib.md5((filter_pattern or "").encode()).hexdigest()[:8]
-    return cache.get("tests", extra_key)
-
-
-def set_cached_tests(project_path: str, results: dict, filter_pattern: str | None = None, ttl: int = 3600):
-    """Cache test results"""
-    cache = CacheManager(project_path, ttl)
-    extra_key = hashlib.md5((filter_pattern or "").encode()).hexdigest()[:8]
-    cache.set("tests", results, extra_key)
-
-
 def invalidate_cache(project_path: str):
     """Invalidate all cache for project"""
     cache = CacheManager(project_path)

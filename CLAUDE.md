@@ -26,15 +26,36 @@ pytest
 
 # Create default config in Unity project
 python main.py -p /path/to/project --init
+
+# Test groups
+python main.py -p /path/to/project --group player
+python main.py -p /path/to/project --group player,inventory
+python main.py -p /path/to/project --list-groups
+
+# Dependency graph
+python main.py -p /path/to/project --export-deps deps.json
+python main.py -p /path/to/project --show-deps PlayerController
+
+# Fix verification (for agents)
+python main.py -p /path/to/project --verify-fix "PlayerMoveTest"
+python main.py -p /path/to/project --verify-fix "Test1,Test2" -j
+
+# Detailed error context (for agents)
+python main.py -p /path/to/project --with-context
+python main.py -p /path/to/project --with-context -j
 ```
 
 ## Architecture
 
 ### Entry Point
-`main.py` - CLI argument parsing and three run modes:
+`main.py` - CLI argument parsing and run modes:
 - `run_json_mode()` - JSON-only output
 - `run_ui_mode()` - Rich CLI with progress/results
 - `run_interactive_mode()` - Full TUI with navigation
+- `run_verify_fix()` - Fix verification mode
+- `run_list_groups()` - Show test groups
+- `run_export_deps()` - Export dependency graph
+- `run_show_deps()` - Show class dependencies
 
 ### Core Pipeline (`run_pipeline`)
 1. **Editor Detection** - `version.py:detect_unity_editor()` reads `ProjectSettings/ProjectVersion.txt`
@@ -50,6 +71,10 @@ python main.py -p /path/to/project --init
 - `cli.py` - `CLIRenderer` class for rich terminal output
 - `interactive.py` - TUI navigation for results exploration
 - `reports/` - JUnit export (`junit.py`) and diff comparison (`diff.py`)
+- `groups.py` - Semantic test grouping by feature
+- `deps.py` - Dependency graph analysis and export
+- `verify.py` - Fix verification for agents
+- `error_context.py` - Structured error context with suggested fixes
 
 ### Data Flow
 ```
@@ -61,7 +86,7 @@ UnityResult → CLIRenderer or JSON output
 ### Storage
 Projects get `.unity-agent/` directory with:
 - `cache/` - Compilation cache
-- `trends/` - Historical data
+- `trends/` - Historical data + failed_details.json
 - `results/` - Test result artifacts
 
 ## Config File Format
@@ -80,4 +105,54 @@ test:
 cache:
   enabled: true
   ttl: 3600
+
+test_groups:
+  player:
+    - "PlayerTests.*"
+    - "InputTests.Player*"
+  inventory:
+    - "InventoryTests.*"
+```
+
+## Agent Integration
+
+### Structured Error Context
+Use `--with-context` flag for detailed error analysis:
+```json
+{
+  "error_type": "NullReferenceException",
+  "file": "Assets/Scripts/Player.cs",
+  "line": 42,
+  "code_snippet": ">>> 42 | obj.Method()",
+  "related_tests": ["PlayerTest", "MoveTest"],
+  "suggested_fix": "Add null check before access"
+}
+```
+
+### Fix Verification
+After fixing a test, verify with:
+```bash
+python main.py -p /project --verify-fix "TestName" -j
+```
+Returns:
+```json
+{
+  "verify_results": [{
+    "test_name": "TestName",
+    "passed": true,
+    "is_fixed": true
+  }],
+  "all_fixed": true
+}
+```
+
+### Dependency Graph
+Export for impact analysis:
+```bash
+python main.py -p /project --export-deps deps.json
+```
+Query affected tests:
+```python
+from unity_agent.deps import get_affected_tests_for_files
+tests = get_affected_tests_for_files(project, ["Assets/Scripts/Player.cs"])
 ```

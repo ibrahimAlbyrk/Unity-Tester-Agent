@@ -16,6 +16,10 @@ from unity_agent.retry import run_with_retry
 from unity_agent.reports.diff import compare_results, get_diff_from_history
 from unity_agent.reports.junit import save_junit_report, create_junit_from_results
 from unity_agent.cli import CLIRenderer
+from unity_agent.groups import GroupManager, get_group_manager
+from unity_agent.deps import DependencyAnalyzer, export_dependencies
+from unity_agent.verify import verify_fix, save_failed_details
+from unity_agent.error_context import build_error_context, build_compilation_error_context
 
 
 def main():
@@ -56,6 +60,20 @@ def main():
     # Init
     parser.add_argument("--init", action="store_true", help="Create default config file")
 
+    # Test groups
+    parser.add_argument("--group", help="Run tests from group(s) (comma-separated)")
+    parser.add_argument("--list-groups", action="store_true", help="List available test groups")
+
+    # Dependency graph
+    parser.add_argument("--export-deps", metavar="PATH", help="Export dependency graph to JSON")
+    parser.add_argument("--show-deps", metavar="CLASS", help="Show dependencies for a class")
+
+    # Fix verification
+    parser.add_argument("--verify-fix", metavar="TESTS", help="Verify fix for test(s) (comma-separated)")
+
+    # Error context
+    parser.add_argument("--with-context", action="store_true", help="Include detailed error context")
+
     args = parser.parse_args()
 
     # Handle init
@@ -80,12 +98,114 @@ def main():
     # Ensure storage directory exists
     get_storage_dir(args.project_path)
 
+    # Handle list-groups
+    if args.list_groups:
+        return run_list_groups(args, config)
+
+    # Handle export-deps
+    if args.export_deps:
+        return run_export_deps(args)
+
+    # Handle show-deps
+    if args.show_deps:
+        return run_show_deps(args)
+
+    # Handle verify-fix
+    if args.verify_fix:
+        return run_verify_fix(args, config)
+
+    # Handle group filter
+    if args.group:
+        group_mgr = get_group_manager(config)
+        group_names = [g.strip() for g in args.group.split(",")]
+        filter_pattern = group_mgr.get_filter_pattern(group_names)
+        if filter_pattern:
+            config.test.filter = filter_pattern
+        else:
+            print(f"Warning: No patterns found for group(s): {args.group}")
+
     if args.json:
         return run_json_mode(args, config)
     elif args.interactive:
         return run_interactive_mode(args, config)
     else:
         return run_ui_mode(args, config)
+
+
+def run_list_groups(args, config: Config):
+    """List available test groups"""
+    console = Console()
+    cli = CLIRenderer(console)
+
+    group_mgr = get_group_manager(config)
+    groups = group_mgr.list_groups()
+
+    if not groups:
+        # Try auto-detection
+        auto_groups = GroupManager.auto_detect_groups(args.project_path)
+        if auto_groups:
+            console.print("[dim]No groups configured. Auto-detected groups:[/]\n")
+            for name, patterns in auto_groups.items():
+                console.print(f"  [cyan]{name}[/]: {', '.join(patterns[:3])}")
+            console.print("\n[dim]Add these to .unity-agent.yaml under test_groups:[/]")
+        else:
+            console.print("[yellow]No test groups configured or detected[/]")
+        return 0
+
+    cli.groups_panel(groups)
+    return 0
+
+
+def run_export_deps(args):
+    """Export dependency graph to JSON"""
+    console = Console()
+    console.print(f"[dim]Analyzing dependencies in {args.project_path}...[/]")
+
+    export_dependencies(args.project_path, args.export_deps)
+    console.print(f"[green]✓[/] Exported to {args.export_deps}")
+    return 0
+
+
+def run_show_deps(args):
+    """Show dependencies for a class"""
+    console = Console()
+    cli = CLIRenderer(console)
+
+    analyzer = DependencyAnalyzer(args.project_path)
+    analyzer.analyze()
+
+    deps_info = analyzer.get_class_deps(args.show_deps)
+    cli.deps_panel(args.show_deps, deps_info)
+    return 0
+
+
+def run_verify_fix(args, config: Config):
+    """Verify fix for specific tests"""
+    console = Console()
+    cli = CLIRenderer(console)
+
+    # Detect editor
+    editor_path = config.project.editor_path or detect_unity_editor(args.project_path)
+    if not editor_path:
+        console.print("[red]Error: Unity editor not found[/]")
+        return 1
+
+    test_names = [t.strip() for t in args.verify_fix.split(",")]
+    console.print(f"[dim]Verifying fix for: {', '.join(test_names)}[/]\n")
+
+    report = verify_fix(
+        editor_path,
+        args.project_path,
+        test_names,
+        platform=config.test.platform
+    )
+
+    if args.json:
+        print(report.to_json())
+    else:
+        cli.verify_panel(report)
+
+    return 0 if report.all_fixed else 1
 
 
 def run_json_mode(args, config: Config):
@@ -158,9 +278,18 @@ def run_ui_mode(args, config: Config):
     # Show results
     if result.stage == "compilation" and result.compilation_errors:
         cli.compilation_errors(result.compilation_errors)
+        # Show first error context if available
+        if args.with_context and result.compilation_errors and result.compilation_errors[0].context:
+            cli.error_context_panel(result.compilation_errors[0].context)
     elif result.test_results:
         cli.results_panel(result.test_results)
         cli.failed_tests(result.test_results)
+
+        # Show first error context if available
+        if args.with_context and result.test_results.failed_tests:
+            first_fail = result.test_results.failed_tests[0]
+            if first_fail.context:
+                cli.error_context_panel(first_fail.context)
 
         # Show flaky tests
         if result.flaky_tests:
@@ -251,6 +380,13 @@ def run_pipeline(
         if on_step_complete:
             on_step_complete(2, 3, f"Compilation failed ({len(errors)} errors)", False)
 
+        # Add error context if requested
+        if hasattr(args, 'with_context') and args.with_context:
+            for err in errors:
+                err.context = build_compilation_error_context(
+                    err.code, err.file, err.line, err.message, args.project_path
+                )
+
         result = UnityResult(
             success=False,
             stage="compilation",
@@ -308,6 +444,15 @@ def run_pipeline(
 
     metrics.test_run_ms = (time.perf_counter() - step_start) * 1000
     metrics.total_ms = (time.perf_counter() - total_start) * 1000
+
+    # Add error context if requested
+    if hasattr(args, 'with_context') and args.with_context:
+        for ft in test_results.failed_tests:
+            ft.context = build_error_context(ft.message, ft.stack_trace, args.project_path)
+
+    # Save failed test details for verification
+    if test_results.failed_tests:
+        save_failed_details(args.project_path, test_results.failed_tests)
 
     success = test_results.failed == 0
     msg = f"Tests completed ({test_results.passed}/{test_results.total} passed)"

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, asdict
-from typing import Literal
+from typing import Literal, Any
 import json
 
 
@@ -10,6 +10,7 @@ class CompilationError:
     code: str
     message: str
     count: int = 1
+    context: Any = None  # ErrorContext, set later to avoid circular import
 
 
 @dataclass
@@ -18,6 +19,7 @@ class FailedTest:
     message: str
     stack_trace: str
     duration: float = 0.0
+    context: Any = None  # ErrorContext, set later to avoid circular import
 
 
 @dataclass

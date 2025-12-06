@@ -38,12 +38,18 @@ class TrendsConfig:
 
 
 @dataclass
+class TestGroupsConfig:
+    groups: dict[str, list[str]] = field(default_factory=dict)
+
+
+@dataclass
 class Config:
     project: ProjectConfig = field(default_factory=ProjectConfig)
     test: TestConfig = field(default_factory=TestConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     trends: TrendsConfig = field(default_factory=TrendsConfig)
+    test_groups: TestGroupsConfig = field(default_factory=TestGroupsConfig)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -98,6 +104,9 @@ def _merge_config(config: Config, config_path: Path) -> Config:
         for k, v in data["trends"].items():
             if hasattr(config.trends, k) and v is not None:
                 setattr(config.trends, k, v)
+
+    if data.get("test_groups"):
+        config.test_groups.groups = data["test_groups"]
 
     return config
 
@@ -173,6 +182,12 @@ output:
 trends:
   enabled: true
   max_history: 100
+
+# test_groups:
+#   player:
+#     - "PlayerTests.*"
+#   inventory:
+#     - "InventoryTests.*"
 """
 
     config_path.write_text(default_yaml)

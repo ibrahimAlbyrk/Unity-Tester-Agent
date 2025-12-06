@@ -7,6 +7,9 @@ from rich.table import Table
 from rich import box
 
 from .models import UnityResult, TestResults, PerformanceMetrics, FlakyTest, TestDiff
+from .error_context import ErrorContext
+from .verify import VerifyReport
+from .groups import TestGroup
 
 
 # C# Error documentation links
@@ -256,3 +259,114 @@ class CLIRenderer:
     def cache_hit(self, cache_type: str):
         """Show cache hit message"""
         self.console.print(f"  [dim]💾 Using cached {cache_type} results[/]")
+
+    def error_context_panel(self, context: ErrorContext):
+        """Show detailed error context for agent consumption"""
+        if context is None:
+            return
+
+        self.console.print()
+
+        lines = []
+        lines.append(f"[bold red]Error Type:[/] {context.error_type}")
+
+        if context.file:
+            lines.append(f"[bold]Location:[/] {context.file}:{context.line or '?'}")
+
+        if context.suggested_fix:
+            lines.append(f"\n[bold green]Suggested Fix:[/] {context.suggested_fix}")
+
+        if context.code_snippet:
+            lines.append("\n[bold]Code Context:[/]")
+            lines.append(f"[dim]{context.code_snippet}[/]")
+
+        if context.related_tests:
+            lines.append(f"\n[bold]Related Tests:[/] {', '.join(context.related_tests[:5])}")
+
+        if context.error_history:
+            lines.append(f"\n[dim]This error occurred {len(context.error_history)} time(s) before[/]")
+
+        content = "\n".join(lines)
+        self.console.print(Panel(content, title="[bold]Error Context[/]", box=box.ROUNDED, border_style="red"))
+
+    def verify_panel(self, report: VerifyReport):
+        """Show fix verification results"""
+        if report is None:
+            return
+
+        self.console.print()
+
+        lines = []
+        lines.append(f"[bold]{report.summary}[/]")
+        lines.append("")
+
+        for result in report.results:
+            if result.is_fixed:
+                icon = "[green]✓[/]"
+                status = "[green]FIXED[/]"
+            elif result.passed:
+                icon = "[blue]○[/]"
+                status = "[blue]PASS[/] (was not failing)"
+            else:
+                icon = "[red]✗[/]"
+                status = "[red]STILL FAILING[/]"
+
+            lines.append(f"{icon} {result.test_name}: {status}")
+
+            if result.current_error and not result.passed:
+                short_err = result.current_error[:60] + "..." if len(result.current_error) > 60 else result.current_error
+                lines.append(f"    [dim]{short_err}[/]")
+
+        border_color = "green" if report.all_fixed else "yellow"
+        content = "\n".join(lines)
+        self.console.print(Panel(content, title="[bold]Fix Verification[/]", box=box.ROUNDED, border_style=border_color))
+
+    def groups_panel(self, groups: list[TestGroup]):
+        """Show available test groups"""
+        if not groups:
+            self.console.print("[dim]No test groups configured[/]")
+            return
+
+        self.console.print()
+
+        table = Table(box=box.SIMPLE, show_header=True)
+        table.add_column("Group", style="cyan")
+        table.add_column("Patterns", style="dim")
+
+        for group in groups:
+            patterns = ", ".join(group.patterns[:3])
+            if len(group.patterns) > 3:
+                patterns += f" (+{len(group.patterns) - 3} more)"
+            table.add_row(group.name, patterns)
+
+        self.console.print(Panel(table, title="[bold]Test Groups[/]", box=box.ROUNDED, border_style="blue"))
+
+    def deps_panel(self, class_name: str, deps_info: dict):
+        """Show dependency info for a class"""
+        if "error" in deps_info:
+            self.console.print(f"[red]{deps_info['error']}[/]")
+            return
+
+        self.console.print()
+
+        lines = []
+        lines.append(f"[bold cyan]{deps_info['class']}[/]")
+        lines.append(f"[dim]File:[/] {deps_info['file']}")
+
+        if deps_info.get('namespace'):
+            lines.append(f"[dim]Namespace:[/] {deps_info['namespace']}")
+
+        if deps_info.get('base_classes'):
+            lines.append(f"[dim]Extends:[/] {', '.join(deps_info['base_classes'])}")
+
+        lines.append("")
+        lines.append(f"[bold]Affected Tests ({deps_info['test_count']}):[/]")
+
+        for test in deps_info.get('affected_tests', [])[:10]:
+            lines.append(f"  • {test}")
+
+        if deps_info['test_count'] > 10:
+            lines.append(f"  [dim]... and {deps_info['test_count'] - 10} more[/]")
+
+        content = "\n".join(lines)
+        self.console.print(Panel(content, title="[bold]Dependencies[/]", box=box.ROUNDED, border_style="blue"))
