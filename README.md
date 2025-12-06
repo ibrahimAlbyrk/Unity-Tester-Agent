@@ -1,18 +1,12 @@
 <p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=0,2,2,5,30&height=200&section=header&text=Unity%20Test%20Agent&fontSize=50&fontColor=fff&animation=fadeIn&fontAlignY=35&desc=Headless%20Unity%20Testing%20for%20AI%20Agents&descAlignY=55&descSize=18" alt="Unity Test Agent"/>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Unity-000000?style=for-the-badge&logo=unity&logoColor=white" alt="Unity"/>
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"/>
   <img src="https://img.shields.io/badge/CLI-Rich-FF6B6B?style=for-the-badge" alt="Rich CLI"/>
 </p>
-
-<h1 align="center">
-  <br>
-  Unity Test Agent
-  <br>
-</h1>
-
-<h4 align="center">
-  Headless Unity test runner with beautiful CLI output — perfect for AI agents & CI/CD
-</h4>
 
 <p align="center">
   <a href="#-key-features">Features</a> •
