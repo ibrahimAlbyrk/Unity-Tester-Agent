@@ -46,17 +46,27 @@
 ## Quick Start
 
 ```bash
-# Install
-pip install -e .
+# Setup (one-time)
+./setup.sh
 
 # Run tests
-python main.py -p /path/to/unity/project
+./tester.sh /path/to/unity/project
 
 # Interactive mode
-python main.py -p /path/to/project -i
+./tester.sh /path/to/project -i
 
 # JSON output (for agents)
-python main.py -p /path/to/project -j
+./tester.sh /path/to/project -j
+
+# Show help
+./tester.sh --help
+```
+
+### Alternative (pip)
+
+```bash
+pip install -e .
+python main.py -p /path/to/unity/project
 ```
 
 ---

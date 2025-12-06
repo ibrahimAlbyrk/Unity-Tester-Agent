@@ -9,10 +9,16 @@ Unity Test Agent - CLI tool for compiling and running Unity project tests with r
 ## Commands
 
 ```bash
-# Install dependencies
-pip install -e ".[dev]"
+# Setup (one-time)
+./setup.sh
 
-# Run against a Unity project
+# Run tests via shell script
+./tester.sh /path/to/unity/project
+./tester.sh /path/to/project -j    # JSON
+./tester.sh /path/to/project -i    # Interactive
+
+# Or via Python directly
+pip install -e ".[dev]"
 python main.py -p /path/to/unity/project
 
 # Run with JSON output only
