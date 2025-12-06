@@ -54,14 +54,18 @@ class InteractiveCLI:
             self._render_trends()
 
     def _render_header(self):
-        """Render header"""
+        """Render header with keybindings help"""
         from pathlib import Path
         project_name = Path(self.project_path).name
 
-        content = f"[bold cyan]🎮 Unity Test Agent[/] [dim](Interactive Mode)[/]\n"
+        content = f"[bold cyan]Unity Test Agent[/] [dim](Interactive Mode)[/]\n"
         content += f"[dim]Project:[/] {project_name}"
 
         self.console.print(Panel(content, box=box.ROUNDED, border_style="cyan"))
+
+        # Keybindings help banner
+        keys = "[dim]Keys:[/] [cyan]d[/]etail  [cyan]r[/]etry  [cyan]t[/]rends  [cyan]a[/]ll-failed  [cyan]q[/]uit"
+        self.console.print(keys)
         self.console.print()
 
     def _render_results(self):
