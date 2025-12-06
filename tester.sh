@@ -23,6 +23,13 @@ show_help() {
     echo -e "${BOLD}Usage:${NC}"
     echo -e "  ./tester.sh <project-path> [options]"
     echo -e "  ./tester.sh [options]                  ${CYAN}# uses saved project${NC}"
+    echo -e "  ./tester.sh <project-path> <preset>    ${CYAN}# use a preset${NC}"
+    echo ""
+    echo -e "${BOLD}Presets:${NC} ${CYAN}(shortcuts for common workflows)${NC}"
+    echo -e "  ${GREEN}agent${NC}      JSON + error context (for AI agents)"
+    echo -e "  ${GREEN}debug${NC}      Interactive + retries + context"
+    echo -e "  ${GREEN}ci${NC}         JSON + trends + JUnit export"
+    echo -e "  ${GREEN}quick${NC}      Default settings, minimal output"
     echo ""
     echo -e "${BOLD}Project Management:${NC}"
     echo -e "  ${GREEN}--set <path>${NC}          Save project path for future use"
@@ -30,12 +37,10 @@ show_help() {
     echo -e "  ${GREEN}--clear${NC}               Clear saved project path"
     echo ""
     echo -e "${BOLD}Examples:${NC}"
-    echo -e "  ${CYAN}./tester.sh --set /path/to/unity/project${NC}  # Save project"
-    echo -e "  ${CYAN}./tester.sh${NC}                               # Run with saved project"
-    echo -e "  ${CYAN}./tester.sh -j${NC}                            # JSON output"
-    echo -e "  ${CYAN}./tester.sh -i${NC}                            # Interactive mode"
-    echo -e "  ${CYAN}./tester.sh --group player${NC}                # Run test group"
-    echo -e "  ${CYAN}./tester.sh ./OtherProject${NC}                # One-time different project"
+    echo -e "  ${CYAN}./tester.sh ./MyProject agent${NC}            # AI agent mode"
+    echo -e "  ${CYAN}./tester.sh debug${NC}                        # Debug with saved project"
+    echo -e "  ${CYAN}./tester.sh ci --platform PlayMode${NC}       # CI + extra options"
+    echo -e "  ${CYAN}./tester.sh --set /path/to/project${NC}       # Save project"
     echo ""
     echo -e "${BOLD}Output Modes:${NC}"
     echo -e "  ${GREEN}-j, --json${NC}           JSON output only (for agents)"
@@ -125,7 +130,12 @@ case "$1" in
             exit 1
         fi
         save_project "$2"
-        exit 0
+        # Check if there are more args (e.g., --wizard)
+        shift 2
+        if [[ -z "$1" ]]; then
+            exit 0
+        fi
+        # Continue with remaining args using saved project
         ;;
     --current)
         show_current
@@ -137,15 +147,46 @@ case "$1" in
         ;;
 esac
 
+# Expand preset to flags (bash 3 compatible)
+expand_preset() {
+    case "$1" in
+        agent) echo "-j --with-context"; return 0 ;;
+        debug) echo "-i --retries 3 --with-context"; return 0 ;;
+        ci)    echo "-j --show-trends --junit results.xml"; return 0 ;;
+        quick) echo ""; return 0 ;;
+        *)     return 1 ;;
+    esac
+}
+
+# Check if argument is a preset
+is_preset() {
+    case "$1" in
+        agent|debug|ci|quick) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # Determine project path
 PROJECT_PATH=""
 ARGS=()
+PRESET_ARGS=""
 
+# Check if first argument is a preset (use saved project)
+if [[ -n "$1" ]] && is_preset "$1"; then
+    PRESET_ARGS=$(expand_preset "$1")
+    shift
+    PROJECT_PATH=$(get_saved_project)
+    ARGS=("$@")
 # Check if first argument looks like a path (not an option)
-if [[ -n "$1" && ! "$1" =~ ^- ]]; then
-    # First arg is a path
+elif [[ -n "$1" && ! "$1" =~ ^- ]]; then
     PROJECT_PATH="$1"
     shift
+
+    # Check if second arg is a preset
+    if [[ -n "$1" ]] && is_preset "$1"; then
+        PRESET_ARGS=$(expand_preset "$1")
+        shift
+    fi
     ARGS=("$@")
 else
     # No path provided, use saved project
@@ -203,4 +244,8 @@ if ! python3 -c "import rich" 2>/dev/null; then
 fi
 
 # Run the test agent
-exec python3 "${SCRIPT_DIR}/main.py" -p "$PROJECT_PATH" "${ARGS[@]}"
+if [[ -n "$PRESET_ARGS" ]]; then
+    exec python3 "${SCRIPT_DIR}/main.py" -p "$PROJECT_PATH" $PRESET_ARGS "${ARGS[@]}"
+else
+    exec python3 "${SCRIPT_DIR}/main.py" -p "$PROJECT_PATH" "${ARGS[@]}"
+fi
