@@ -218,8 +218,36 @@ def run_verify_fix(args, config: Config):
 
 def run_json_mode(args, config: Config):
     """Run in JSON-only mode"""
+    import json
+
     result, metrics = run_pipeline(args, config)
-    print(result.to_json())
+
+    # Build output dict
+    output = asdict(result)
+
+    # Add trends if requested
+    if args.show_trends and result.test_results:
+        trends_mgr = TrendsManager(args.project_path)
+        history = trends_mgr.get_history(limit=10)
+        output["trends"] = [
+            {
+                "timestamp": h.timestamp,
+                "pass_rate": h.pass_rate,
+                "total": h.total,
+                "passed": h.passed,
+                "failed": h.failed
+            }
+            for h in history
+        ]
+
+    # Add diff if requested
+    if args.diff and result.test_results:
+        baseline = get_baseline(args.project_path)
+        diff = compare_results(result.test_results, baseline)
+        if diff:
+            output["diff"] = asdict(diff)
+
+    print(json.dumps(output, indent=2))
     return 0 if result.success else 1
 
 
