@@ -87,9 +87,11 @@ def main():
     if args.clear_cache:
         from unity_agent.cache import invalidate_cache
         invalidate_cache(args.project_path)
-        print("Cache cleared")
         if args.json:
+            import json
+            print(json.dumps({"cache_cleared": True}))
             return 0
+        print("Cache cleared")
 
     # Load config and merge CLI args
     config = load_config(args.project_path)
