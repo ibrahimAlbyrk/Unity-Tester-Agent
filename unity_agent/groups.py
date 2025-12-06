@@ -31,6 +31,23 @@ class GroupManager:
     def has_group(self, name: str) -> bool:
         return name in self.groups
 
+    def get_available_groups(self) -> list[str]:
+        """Return list of available group names"""
+        return list(self.groups.keys())
+
+    def suggest_similar(self, name: str) -> list[str]:
+        """Suggest similar group names using simple fuzzy matching"""
+        suggestions = []
+        name_lower = name.lower()
+        for group_name in self.groups.keys():
+            # Check if name is substring or group_name is substring
+            if name_lower in group_name.lower() or group_name.lower() in name_lower:
+                suggestions.append(group_name)
+            # Check common prefix
+            elif name_lower[:3] == group_name.lower()[:3]:
+                suggestions.append(group_name)
+        return suggestions[:3]
+
     @staticmethod
     def auto_detect_groups(project_path: str) -> dict[str, list[str]]:
         """Scan test files and suggest groupings based on folder structure"""
