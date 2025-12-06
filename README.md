@@ -75,7 +75,7 @@
 ./tester.sh /other/project -j
 ```
 
-### Alternative (pip)
+### Alternative (Python directly)
 
 ```bash
 pip install -e .
@@ -90,16 +90,16 @@ python main.py -p /path/to/unity/project
 
 ```bash
 # Run EditMode tests (default)
-python main.py -p ./MyUnityProject
+./tester.sh ./MyUnityProject
 
 # Run PlayMode tests
-python main.py -p ./MyUnityProject --platform PlayMode
+./tester.sh ./MyUnityProject --platform PlayMode
 
 # Filter specific tests
-python main.py -p ./MyUnityProject --filter "PlayerTests.*"
+./tester.sh ./MyUnityProject --filter "PlayerTests.*"
 
 # Export JUnit XML
-python main.py -p ./MyUnityProject --junit ./results.xml
+./tester.sh ./MyUnityProject --junit ./results.xml
 ```
 
 ### Output Modes
@@ -114,10 +114,10 @@ python main.py -p ./MyUnityProject --junit ./results.xml
 
 ```bash
 # Retry failed tests up to 3 times
-python main.py -p ./MyProject --retries 3
+./tester.sh ./MyProject --retries 3
 
 # Set flaky threshold (default 0.3)
-python main.py -p ./MyProject --retries 3 --flaky-threshold 0.5
+./tester.sh ./MyProject --retries 3 --flaky-threshold 0.5
 ```
 
 ### Test Groups
@@ -126,13 +126,17 @@ Run tests by semantic group:
 
 ```bash
 # Run player-related tests
-python main.py -p ./MyProject --group player
+./tester.sh ./MyProject --group player
 
 # Run multiple groups
-python main.py -p ./MyProject --group player,inventory
+./tester.sh ./MyProject --group player,inventory
 
 # List available groups
-python main.py -p ./MyProject --list-groups
+./tester.sh ./MyProject --list-groups
+
+# ⚠️ Unknown groups return error (exit code 1)
+./tester.sh ./MyProject --group unknown
+# Error: No patterns found for group(s): unknown
 ```
 
 Configure in `.unity-agent.yaml`:
@@ -151,10 +155,10 @@ Analyze which tests are affected by code changes:
 
 ```bash
 # Export full dependency graph
-python main.py -p ./MyProject --export-deps deps.json
+./tester.sh ./MyProject --export-deps deps.json
 
 # Show deps for a specific class
-python main.py -p ./MyProject --show-deps PlayerController
+./tester.sh ./MyProject --show-deps PlayerController
 ```
 
 Output:
@@ -174,20 +178,28 @@ Affected Tests (5):
 
 ```bash
 # Disable cache
-python main.py -p ./MyProject --no-cache
+./tester.sh ./MyProject --no-cache
 
 # Clear cache before run
-python main.py -p ./MyProject --clear-cache
+./tester.sh ./MyProject --clear-cache
+
+# Clear cache with JSON output
+./tester.sh ./MyProject --clear-cache -j
+# Returns: {"cache_cleared": true}
 ```
 
 ### Trends & Diff
 
 ```bash
 # Show historical pass rate trend
-python main.py -p ./MyProject --show-trends
+./tester.sh ./MyProject --show-trends
 
 # Show diff vs previous run
-python main.py -p ./MyProject --diff
+./tester.sh ./MyProject --diff
+
+# JSON mode includes trends/diff data
+./tester.sh ./MyProject --show-trends -j  # adds "trends" array to JSON
+./tester.sh ./MyProject --diff -j         # adds "diff" object to JSON
 ```
 
 ---
@@ -215,7 +227,7 @@ Traditional Unity Testing          Unity Test Agent
 Get detailed error analysis for intelligent fixing:
 
 ```bash
-python main.py -p ./MyProject --with-context -j
+./tester.sh ./MyProject --with-context -j
 ```
 
 ```json
@@ -239,23 +251,35 @@ python main.py -p ./MyProject --with-context -j
 
 ### Fix Verification
 
-Verify if your fix worked:
+Verify if your fix worked. **⚠️ Must use full test name (Namespace.Class.Method)**:
 
 ```bash
-python main.py -p ./MyProject --verify-fix "PlayerMoveTest" -j
+./tester.sh ./MyProject --verify-fix "MyGame.Tests.PlayerMoveTest" -j
 ```
 
 ```json
 {
   "verify_results": [{
-    "test_name": "PlayerMoveTest",
+    "test_name": "MyGame.Tests.PlayerMoveTest",
     "passed": true,
     "previous_error": "NullReferenceException at line 42",
     "current_error": null,
-    "is_fixed": true
+    "is_fixed": true,
+    "was_failing": true
   }],
   "all_fixed": true,
   "summary": "Fixed 1/1 previously failing test(s). All fixes verified!"
+}
+```
+
+Short names return error:
+```json
+{
+  "verify_results": [{
+    "test_name": "PlayerMoveTest",
+    "passed": false,
+    "current_error": "Test not found. Use full test name (e.g., Namespace.Class.Method)"
+  }]
 }
 ```
 
@@ -277,7 +301,7 @@ affected = get_affected_tests_for_files(
 ### JSON Output Example
 
 ```bash
-python main.py -p ./MyProject -j
+./tester.sh ./MyProject -j
 ```
 
 ```json
@@ -321,6 +345,7 @@ def run_tests(project_path, with_context=False):
     return json.loads(result.stdout)
 
 def verify_fix(project_path, test_name):
+    # Note: test_name must be full name (Namespace.Class.Method)
     result = subprocess.run([
         "python", "main.py", "-p", project_path,
         "--verify-fix", test_name, "-j"
@@ -363,7 +388,7 @@ if not data["success"]:
 Create `.unity-agent.yaml` in your project root:
 
 ```bash
-python main.py -p ./MyProject --init
+./tester.sh ./MyProject --init
 ```
 
 ### Config File
@@ -401,10 +426,10 @@ test_groups:
 ## CLI Reference
 
 ```
-usage: main.py -p PROJECT_PATH [options]
+usage: ./tester.sh PROJECT_PATH [options]
 
 Required:
-  -p, --project-path     Unity project path
+  PROJECT_PATH           Unity project path (or use --set to save)
 
 Output:
   -j, --json             JSON output only

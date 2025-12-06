@@ -12,43 +12,45 @@ Unity Test Agent - CLI tool for compiling and running Unity project tests with r
 # Setup (one-time)
 ./setup.sh
 
-# Run tests via shell script
-./tester.sh /path/to/unity/project
-./tester.sh /path/to/project -j    # JSON
-./tester.sh /path/to/project -i    # Interactive
-
-# Or via Python directly
-pip install -e ".[dev]"
-python main.py -p /path/to/unity/project
-
-# Run with JSON output only
-python main.py -p /path/to/project -j
-
-# Run interactive TUI mode
-python main.py -p /path/to/project -i
-
 # Run tests
+./tester.sh /path/to/unity/project
+./tester.sh /path/to/project -j    # JSON output
+./tester.sh /path/to/project -i    # Interactive TUI
+
+# Run project tests (pytest)
 pytest
 
 # Create default config in Unity project
-python main.py -p /path/to/project --init
+./tester.sh /path/to/project --init
 
 # Test groups
-python main.py -p /path/to/project --group player
-python main.py -p /path/to/project --group player,inventory
-python main.py -p /path/to/project --list-groups
+./tester.sh /path/to/project --group player
+./tester.sh /path/to/project --group player,inventory
+./tester.sh /path/to/project --list-groups
 
 # Dependency graph
-python main.py -p /path/to/project --export-deps deps.json
-python main.py -p /path/to/project --show-deps PlayerController
+./tester.sh /path/to/project --export-deps deps.json
+./tester.sh /path/to/project --show-deps PlayerController
 
-# Fix verification (for agents)
-python main.py -p /path/to/project --verify-fix "PlayerMoveTest"
-python main.py -p /path/to/project --verify-fix "Test1,Test2" -j
+# Fix verification (for agents) - MUST use full test names
+./tester.sh /path/to/project --verify-fix "Namespace.Class.TestMethod" -j
+./tester.sh /path/to/project --verify-fix "Tests.PlayerMoveTest,Tests.PlayerJumpTest" -j
 
 # Detailed error context (for agents)
-python main.py -p /path/to/project --with-context
-python main.py -p /path/to/project --with-context -j
+./tester.sh /path/to/project --with-context
+./tester.sh /path/to/project --with-context -j
+
+# Trends and diff in JSON mode
+./tester.sh /path/to/project --show-trends -j  # adds "trends" array
+./tester.sh /path/to/project --diff -j         # adds "diff" object
+
+# Cache operations
+./tester.sh /path/to/project --clear-cache     # prints "Cache cleared"
+./tester.sh /path/to/project --clear-cache -j  # returns {"cache_cleared": true}
+
+# Test groups (exits with error if group not found)
+./tester.sh /path/to/project --group player    # runs player group tests
+./tester.sh /path/to/project --group unknown   # error + exit 1
 ```
 
 ## Architecture
@@ -136,26 +138,38 @@ Use `--with-context` flag for detailed error analysis:
 ```
 
 ### Fix Verification
-After fixing a test, verify with:
+After fixing a test, verify with **full test name** (Namespace.Class.Method):
 ```bash
-python main.py -p /project --verify-fix "TestName" -j
+./tester.sh /project --verify-fix "MyGame.Tests.PlayerMoveTest" -j
 ```
 Returns:
 ```json
 {
   "verify_results": [{
-    "test_name": "TestName",
+    "test_name": "MyGame.Tests.PlayerMoveTest",
     "passed": true,
-    "is_fixed": true
+    "is_fixed": true,
+    "was_failing": true
   }],
   "all_fixed": true
+}
+```
+
+**Important**: Short names return "Test not found" error:
+```json
+{
+  "verify_results": [{
+    "test_name": "PlayerMoveTest",
+    "passed": false,
+    "current_error": "Test not found. Use full test name (e.g., Namespace.Class.Method)"
+  }]
 }
 ```
 
 ### Dependency Graph
 Export for impact analysis:
 ```bash
-python main.py -p /project --export-deps deps.json
+./tester.sh /project --export-deps deps.json
 ```
 Query affected tests:
 ```python
