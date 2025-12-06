@@ -124,7 +124,13 @@ def main():
         if filter_pattern:
             config.test.filter = filter_pattern
         else:
-            print(f"Warning: No patterns found for group(s): {args.group}")
+            error_msg = f"No patterns found for group(s): {args.group}"
+            if args.json:
+                import json
+                print(json.dumps({"error": error_msg, "groups_not_found": group_names}))
+            else:
+                print(f"Error: {error_msg}")
+            return 1
 
     if args.json:
         return run_json_mode(args, config)
