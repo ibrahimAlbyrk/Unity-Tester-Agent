@@ -46,7 +46,7 @@ def get_previous_failures(project_path: str) -> dict[str, str]:
         return {}
 
     failed_map = {}
-    failed_names = latest.get("failed_test_names", [])
+    failed_names = latest.failed_test_names
 
     # Try to get error messages from stored data
     history_path = Path(project_path) / ".unity-agent" / "trends" / "failed_details.json"
