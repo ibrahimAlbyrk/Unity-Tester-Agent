@@ -116,16 +116,26 @@ def run_with_retry(
             platform=platform
         )
 
+        # If no tests ran (filter didn't match or parse failed), skip
+        if retry_results.total == 0:
+            continue
+
         # Check which tests passed this time (flaky!)
         retry_failed_names = {ft.name for ft in retry_results.failed_tests}
 
+        # Only mark tests as passed if Unity ran all expected tests
+        # (prevents false positives when filter doesn't match some tests)
+        all_tests_ran = retry_results.total >= len(still_failing)
+
         for test_name in list(still_failing):
-            if test_name not in retry_failed_names:
-                # Test passed on retry - it's flaky!
+            if test_name in retry_failed_names:
+                # Still failing
+                tracker.record_result(test_name, passed=False)
+            elif all_tests_ran:
+                # Test passed on retry - it's flaky
                 tracker.record_result(test_name, passed=True)
                 still_failing.discard(test_name)
 
-                # Find the original failure info
                 for ft in initial_results.failed_tests:
                     if ft.name == test_name:
                         flaky_tests.append(FlakyTest(
@@ -134,9 +144,6 @@ def run_with_retry(
                             fail_count=1
                         ))
                         break
-            else:
-                # Still failing
-                tracker.record_result(test_name, passed=False)
 
     # Build final results
     final_failed = [ft for ft in initial_results.failed_tests if ft.name in still_failing]

@@ -337,6 +337,10 @@ def run_pipeline(
     editor_path = config.project.editor_path or detect_unity_editor(args.project_path)
     metrics.editor_detect_ms = (time.perf_counter() - step_start) * 1000
 
+    # Store detected path in config for retry
+    if editor_path and not config.project.editor_path:
+        config.project.editor_path = editor_path
+
     if not editor_path:
         if on_step_complete:
             on_step_complete(1, 3, "Editor not found", False)
