@@ -162,33 +162,86 @@ def create_default_config(project_path: str) -> Path:
     default_yaml = """# Unity Test Agent Configuration
 
 project:
-  # path: "."
-  # editor_path: null  # auto-detect
+  # editor_path: null  # auto-detect from ProjectVersion.txt
 
 test:
-  platform: "EditMode"  # EditMode | PlayMode | Both
-  # filter: null        # e.g., "PlayerTests.*"
+  platform: "EditMode"  # EditMode | PlayMode
   retries: 0
-  flaky_threshold: 0.3
 
 cache:
   enabled: true
-  ttl: 3600  # seconds
-
-output:
-  # junit_path: ".unity-agent/results/junit.xml"
-  # coverage_path: null
 
 trends:
   enabled: true
-  max_history: 100
 
 # test_groups:
-#   player:
-#     - "PlayerTests.*"
-#   inventory:
-#     - "InventoryTests.*"
+#   player: ["PlayerTests.*"]
+#   inventory: ["InventoryTests.*"]
 """
 
     config_path.write_text(default_yaml)
+    return config_path
+
+
+def run_setup_wizard(project_path: str) -> Path:
+    """Interactive setup wizard for config creation"""
+    from rich.console import Console
+    from rich.prompt import Prompt, Confirm
+
+    console = Console()
+    config_path = Path(project_path) / ".unity-agent.yaml"
+
+    console.print("\n[cyan bold]Unity Test Agent Setup Wizard[/]\n")
+
+    # Platform selection
+    platform = Prompt.ask(
+        "Test platform",
+        choices=["EditMode", "PlayMode"],
+        default="EditMode"
+    )
+
+    # Retries
+    retries_str = Prompt.ask("Retry failed tests (0-5)", default="0")
+    retries = int(retries_str) if retries_str.isdigit() else 0
+    retries = min(max(retries, 0), 5)
+
+    # Cache
+    cache_enabled = Confirm.ask("Enable compilation cache?", default=True)
+
+    # Trends
+    trends_enabled = Confirm.ask("Enable test history tracking?", default=True)
+
+    # Test groups
+    groups_yaml = ""
+    if Confirm.ask("Configure test groups?", default=False):
+        console.print("[dim]Enter groups (empty name to finish)[/]")
+        groups = {}
+        while True:
+            group_name = Prompt.ask("Group name", default="")
+            if not group_name:
+                break
+            pattern = Prompt.ask(f"Pattern for '{group_name}'", default=f"{group_name.title()}Tests.*")
+            groups[group_name] = [pattern]
+
+        if groups:
+            groups_yaml = "\ntest_groups:\n"
+            for name, patterns in groups.items():
+                groups_yaml += f"  {name}: {patterns}\n"
+
+    # Build config
+    yaml_content = f"""# Unity Test Agent Configuration
+
+test:
+  platform: "{platform}"
+  retries: {retries}
+
+cache:
+  enabled: {str(cache_enabled).lower()}
+
+trends:
+  enabled: {str(trends_enabled).lower()}
+{groups_yaml}"""
+
+    config_path.write_text(yaml_content)
+    console.print(f"\n[green]✓[/] Config saved: [cyan]{config_path}[/]\n")
     return config_path
